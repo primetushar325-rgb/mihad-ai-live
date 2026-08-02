@@ -11,6 +11,18 @@ export default function Accounts() {
   const [accounts, setAccounts] = useState([])
   const [loading, setLoading] = useState(true)
   const [connecting, setConnecting] = useState(false)
+  const [message, setMessage] = useState(null)
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('connected')) {
+      setMessage({ type: 'success', text: 'YouTube channel connected.' })
+      window.history.replaceState({}, '', '/accounts')
+    } else if (params.get('error')) {
+      setMessage({ type: 'error', text: decodeURIComponent(params.get('error')) })
+      window.history.replaceState({}, '', '/accounts')
+    }
+  }, [])
 
   async function load() {
     if (!user) return
@@ -21,21 +33,16 @@ export default function Accounts() {
 
   useEffect(() => { load() }, [user])
 
-  // Connecting an additional YouTube account re-runs Google OAuth with
-  // the extra readonly scopes needed for the Data/Analytics APIs. Google
-  // returns to /accounts, where we read the newly granted channel from
-  // the session and persist it via /api/accounts/connect.
-  async function handleConnect() {
+  // Connecting an additional YouTube account goes through our own
+  // server-side OAuth route (NOT supabase.auth.signInWithOAuth), so
+  // granting access with a different Google account never replaces the
+  // person's main dashboard login. /api/accounts/google/start redirects
+  // to Google; /api/accounts/google/callback exchanges the code, finds
+  // the channel, saves it, and sends the browser back here.
+  function handleConnect() {
     if (accounts.length >= 20) return
     setConnecting(true)
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/accounts`,
-        scopes: 'https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/yt-analytics.readonly',
-        queryParams: { access_type: 'offline', prompt: 'consent' },
-      },
-    })
+    window.location.href = '/api/accounts/google/start'
   }
 
   async function handleRefresh(account) {
@@ -64,6 +71,18 @@ export default function Accounts() {
   return (
     <DashboardLayout title="Connected Accounts">
       <Head><title>Connected Accounts — MIHAD AI.LIVE</title></Head>
+
+      {message && (
+        <div
+          className={`mb-4 rounded-xl border p-3 text-sm ${
+            message.type === 'success'
+              ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300'
+              : 'border-red-400/30 bg-red-400/10 text-red-300'
+          }`}
+        >
+          {message.text}
+        </div>
+      )}
 
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
