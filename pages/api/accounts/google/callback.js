@@ -21,8 +21,14 @@ export default async function handler(req, res) {
   }
 
   const supabase = getServerSupabase(req, res)
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) return res.redirect(`${siteUrl}/login`)
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+  if (!session) {
+    const cookieNames = Object.keys(req.cookies || {}).join(',') || 'none'
+    const reason = sessionError?.message || 'no session on server'
+    return res.redirect(
+      `${siteUrl}/accounts?error=${encodeURIComponent(`SESSION_MISSING: ${reason} | cookies seen: ${cookieNames}`)}`
+    )
+  }
 
   try {
     const redirectUri = `${siteUrl}/api/accounts/google/callback`
